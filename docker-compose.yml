@@ -1,41 +1,46 @@
 version: '3.8'
 
 services:
+  # Docker-in-Docker service (DinD) – runs Docker daemon inside a container
   dind:
-    image: docker:dind
+    image: docker:dind                   # Official Docker-in-Docker image
     container_name: dind
-    privileged: true
+    privileged: true                     # Needed so DinD can run Docker inside itself
     networks:
-      - jenkins
+      - jenkins                          # Attach to jenkins network
     environment:
-      DOCKER_TLS_CERTDIR: /certs
+      DOCKER_TLS_CERTDIR: /certs         # Enable TLS certificates for secure Docker communication
     volumes:
-      - docker-certs-ca:/certs/ca
-      - docker-certs-client:/certs/client
-      - jenkins-data:/var/jenkins_home
+      - docker-certs-ca:/certs/ca        # Store certificate authority files
+      - docker-certs-client:/certs/client # Store client certificates
+      - jenkins-data:/var/jenkins_home   # Share Jenkins home volume for persistence
 
+  # Jenkins service – CI/CD server
   jenkins:
-    image: jenkins/jenkins:lts-jdk11
+    image: jenkins/jenkins:lts-jdk11     # Long Term Support Jenkins with Java 11
     container_name: jenkins
-    restart: unless-stopped
-    user: root
+    restart: unless-stopped              # Restart automatically unless stopped manually
+    user: root                           # Run as root (needed for mounting Docker)
     networks:
-      - jenkins
+      - jenkins                          # Connect to same network as DinD
     environment:
-      DOCKER_HOST: tcp://dind:2376
-      DOCKER_CERT_PATH: /certs/client
-      DOCKER_TLS_VERIFY: 1
+      DOCKER_HOST: tcp://dind:2376       # Point Jenkins to Docker-in-Docker daemon
+      DOCKER_CERT_PATH: /certs/client    # Path for TLS client certificates
+      DOCKER_TLS_VERIFY: 1               # Verify TLS for security
     volumes:
-      - docker-certs-client:/certs/client:ro
-      - jenkins-data:/var/jenkins_home
+      - docker-certs-client:/certs/client:ro # Mount client certs as read-only
+      - jenkins-data:/var/jenkins_home   # Persist Jenkins configuration, jobs, and plugins
     ports:
-      - "8080:8080"
-      - "50000:50000"
+      - "8080:8080"                      # Expose Jenkins web UI
+      - "50000:50000"                    # Expose port for Jenkins agents to connect
 
+# Custom network to connect Jenkins and DinD
 networks:
   jenkins:
 
+# Volumes for persistence and secure certificate storage
 volumes:
   docker-certs-ca:
   docker-certs-client:
   jenkins-data:
+
